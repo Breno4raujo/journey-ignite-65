@@ -33,6 +33,14 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
+  // Proteção de rota — redireciona para /login se não tiver token
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      window.location.href = "/login";
+    }
+  }, []);
+
   const [courses, setCourses] = useState<Course[]>([mockCourse]);
   const [modulesByCourse, setModulesByCourse] = useState<Record<string, Module[]>>({
     [mockCourse.id]: mockModules,
@@ -55,7 +63,6 @@ function Dashboard() {
     [activeCourse, activeModules, progress, pace],
   );
 
-  // Seed victories from already-completed modules + current milestone on mount.
   useEffect(() => {
     const seeded: Victory[] = summary.modules
       .filter((m) => m.isCompleted)
@@ -89,7 +96,8 @@ function Dashboard() {
   }, [paused]);
 
   const remainingLessons = summary.totalLessons - summary.completedLessons;
-  const minutesPerLessonFromPace = Math.round((summary.paceHoursPerWeek * 60) / Math.max(1, remainingLessons / 4)) || 30;
+  const minutesPerLessonFromPace =
+    Math.round((summary.paceHoursPerWeek * 60) / Math.max(1, remainingLessons / 4)) || 30;
 
   const handleAdvance = (moduleId: string) => {
     const prevPercent = summary.overallPercent;
@@ -119,7 +127,6 @@ function Dashboard() {
       }
       return { ...all, [activeCourse.id]: next };
     });
-    // Milestone victory check (25/50/75/100)
     setTimeout(() => {
       const newProgress = progress.map((p) =>
         p.moduleId === moduleId
@@ -183,8 +190,9 @@ function Dashboard() {
     }
   };
 
-  const currentInProgress = summary.modules.find((m) => !m.isCompleted && m.completedLessons > 0)
-    ?? summary.modules.find((m) => !m.isCompleted);
+  const currentInProgress =
+    summary.modules.find((m) => !m.isCompleted && m.completedLessons > 0) ??
+    summary.modules.find((m) => !m.isCompleted);
 
   return (
     <DashboardLayout userName={mockUser.name}>
@@ -196,11 +204,8 @@ function Dashboard() {
         onAdd={handleAddCourse}
         onRemove={handleRemoveCourse}
       />
-
       <OverallProgressCard summary={summary} />
-
       <PauseWeek paused={paused} resumeOn={resumeOn} onToggle={() => setPaused((p) => !p)} />
-
       <MicroHabitCard
         moduleTitle={currentInProgress?.module.title ?? null}
         lessonNumber={currentInProgress ? currentInProgress.completedLessons + 1 : null}
@@ -208,14 +213,11 @@ function Dashboard() {
         paused={paused}
         onStart={handleResume}
       />
-
       <ResumeCard context={summary.resumeContext} onResume={handleResume} />
-
       <div className="grid lg:grid-cols-2 gap-4">
         <PaceSelector pace={pace} onChange={setPace} />
         <WeeklyEnergy current={summary.weeklyEnergy.current} goal={summary.weeklyEnergy.goal} />
       </div>
-
       <div className="grid lg:grid-cols-2 gap-4">
         <ImpactCalculator
           remainingLessons={remainingLessons}
@@ -223,11 +225,8 @@ function Dashboard() {
         />
         <VictoriesWall victories={victories} />
       </div>
-
       <ModuleList modules={summary.modules} onAdvance={handleAdvance} />
-
       <BadgesShowcase badges={summary.badges} />
-
       <CelebrationModal
         open={celebrating !== null}
         moduleTitle={celebrating}
