@@ -13,7 +13,7 @@ import { VictoriesWall } from "@/components/aprenderja/VictoriesWall";
 import { ImpactCalculator } from "@/components/aprenderja/ImpactCalculator";
 import { PauseWeek } from "@/components/aprenderja/PauseWeek";
 import { CoursesManager } from "@/components/aprenderja/CoursesManager";
-import { mockCourse, mockModules, mockUser, initialProgress } from "@/lib/aprenderja/mockData";
+import { mockCourse, mockModules, initialProgress } from "@/lib/aprenderja/mockData";
 import { computeProgressSummary } from "@/lib/aprenderja/progress";
 import type { Course, Module, PaceMode, UserProgress, Victory } from "@/lib/aprenderja/types";
 
@@ -33,12 +33,35 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
-  // Proteção de rota — redireciona para /login se não tiver token
+  const [userName, setUserName] = useState("...");
+
+  // Proteção de rota + busca do usuário logado
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
       window.location.href = "/login";
+      return;
     }
+
+    fetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          localStorage.removeItem("token");
+          window.location.href = "/login";
+          return;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data?.user?.name) {
+          setUserName(data.user.name);
+        }
+      })
+      .catch(() => {
+        // se falhar (ex: banco offline), mantém funcionando com mock
+      });
   }, []);
 
   const [courses, setCourses] = useState<Course[]>([mockCourse]);
@@ -169,7 +192,7 @@ function Dashboard() {
       ...p,
       [course.id]: mods.map((mod) => ({
         id: `p-${mod.id}`,
-        userId: mockUser.id,
+        userId: "user",
         moduleId: mod.id,
         completedLessons: 0,
         lastAccessedAt: null,
@@ -195,7 +218,7 @@ function Dashboard() {
     summary.modules.find((m) => !m.isCompleted);
 
   return (
-    <DashboardLayout userName={mockUser.name}>
+    <DashboardLayout userName={userName}>
       <CoursesManager
         courses={courses}
         modulesByCourse={modulesByCourse}
