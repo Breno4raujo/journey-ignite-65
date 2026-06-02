@@ -1,4 +1,4 @@
-import { GraduationCap, Sparkles } from "lucide-react";
+import { GraduationCap, Sparkles, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 
 interface Props {
@@ -7,6 +7,11 @@ interface Props {
 }
 
 export function DashboardLayout({ userName, children }: Props) {
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border bg-card/70 backdrop-blur sticky top-0 z-20">
@@ -20,10 +25,18 @@ export function DashboardLayout({ userName, children }: Props) {
               <p className="text-xs text-muted-foreground">Sua nova carreira, no seu ritmo</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-3 text-sm">
             <Sparkles className="h-4 w-4 text-accent" />
             <span className="text-muted-foreground hidden sm:inline">Olá,</span>
             <span className="font-medium">{userName}</span>
+            <button
+              onClick={handleLogout}
+              className="ml-2 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors"
+              title="Sair"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sair</span>
+            </button>
           </div>
         </div>
       </header>
