@@ -1,13 +1,6 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { handleApiRequest } from "./backend/routes/api.router";
-
-const apiMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const apiResponse = await handleApiRequest(request);
-  if (apiResponse) return apiResponse;
-  return next();
-});
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -25,5 +18,5 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [apiMiddleware, errorMiddleware],
+  requestMiddleware: [errorMiddleware],
 }));
