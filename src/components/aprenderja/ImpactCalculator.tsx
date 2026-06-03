@@ -72,7 +72,7 @@ export function ImpactCalculator({ remainingLessons, minutesPerLesson = 30 }: Pr
             Você já concluiu tudo — sem mais contagens. Aproveite a conquista! 🎉
           </p>
         ) : (
-          <p className="mt-1 text-sm text-foreground leading-relaxed">
+          <p className="mt-1 text-sm text-foreground leading-relaxed break-words">
             Com <span className="font-semibold">{minutesPerDay} minutos por dia</span>, você termina em{" "}
             <span className="font-semibold text-primary">
               {weeks} {weeks === 1 ? "semana" : "semanas"}
