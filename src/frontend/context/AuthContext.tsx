@@ -18,11 +18,36 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function fetchMe(): Promise<AuthUser | null> {
-  const res = await fetch("/api/auth/me", { credentials: "include" });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.user ?? null;
+const USERS_KEY = "aprenderja:users";
+const SESSION_KEY = "aprenderja:session";
+
+type StoredUser = AuthUser & { password: string };
+
+function readUsers(): StoredUser[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+function writeUsers(users: StoredUser[]) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function readSession(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+function writeSession(user: AuthUser | null) {
+  if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+  else localStorage.removeItem(SESSION_KEY);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -30,56 +55,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshSession = useCallback(async () => {
-    const refreshRes = await fetch("/api/auth/refresh", {
-      method: "POST",
-      credentials: "include",
-    });
-    if (!refreshRes.ok) return false;
-    const me = await fetchMe();
+    const me = readSession();
     setUser(me);
     return !!me;
   }, []);
 
   useEffect(() => {
-    fetchMe()
-      .then(async (me) => {
-        if (me) {
-          setUser(me);
-          return;
-        }
-        await refreshSession();
-      })
-      .finally(() => setLoading(false));
-  }, [refreshSession]);
+    setUser(readSession());
+    setLoading(false);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) return data.error ?? "Erro ao entrar.";
-    setUser(data.user);
+    const normalized = email.trim().toLowerCase();
+    const users = readUsers();
+    const found = users.find((u) => u.email.toLowerCase() === normalized);
+    if (!found) return "E-mail não cadastrado.";
+    if (found.password !== password) return "Senha incorreta.";
+    const session: AuthUser = {
+      id: found.id,
+      name: found.name,
+      email: found.email,
+      createdAt: found.createdAt,
+    };
+    writeSession(session);
+    setUser(session);
     return null;
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ name, email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) return data.error ?? "Erro ao criar conta.";
-    setUser(data.user);
+    const normalized = email.trim().toLowerCase();
+    if (!name.trim()) return "Informe seu nome.";
+    if (!normalized) return "Informe um e-mail válido.";
+    if (password.length < 6) return "A senha deve ter pelo menos 6 caracteres.";
+    const users = readUsers();
+    if (users.some((u) => u.email.toLowerCase() === normalized)) {
+      return "Já existe uma conta com este e-mail.";
+    }
+    const newUser: StoredUser = {
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      email: normalized,
+      createdAt: new Date().toISOString(),
+      password,
+    };
+    writeUsers([...users, newUser]);
+    const session: AuthUser = {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      createdAt: newUser.createdAt,
+    };
+    writeSession(session);
+    setUser(session);
     return null;
   }, []);
 
   const logout = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    writeSession(null);
     setUser(null);
   }, []);
 
