@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/api/seed')({
-  component: RouteComponent,
+  server: {
+    handlers: {
+      GET: async () => new Response('ok'),
+    },
+  },
 })
-
-function RouteComponent() {
-  return <div>Hello "/api/seed"!</div>
-}
