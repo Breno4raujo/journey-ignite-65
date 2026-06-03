@@ -1,6 +1,10 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
+import { validateEnv } from "./lib/env-validation";
+
+// Valida envs obrigatórias no boot do servidor com mensagem amigável.
+validateEnv();
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
