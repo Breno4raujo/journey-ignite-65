@@ -144,8 +144,6 @@ function Dashboard() {
   const remainingLessons = summary.totalLessons - summary.completedLessons;
   const minutesPerLessonFromPace =
     Math.round((summary.paceHoursPerWeek * 60) / Math.max(1, remainingLessons / 4)) || 30;
-  const minutesPerLessonFromPace =
-    Math.round((summary.paceHoursPerWeek * 60) / Math.max(1, remainingLessons / 4)) || 30;
 
   const handleAdvance = async (moduleId: string) => {
     try {
@@ -188,9 +186,6 @@ function Dashboard() {
     await updateProfile({ pausedWeek: next });
   };
 
-  const currentInProgress =
-    summary.modules.find((m) => !m.isCompleted && m.completedLessons > 0) ??
-    summary.modules.find((m) => !m.isCompleted);
   const currentInProgress =
     summary.modules.find((m) => !m.isCompleted && m.completedLessons > 0) ??
     summary.modules.find((m) => !m.isCompleted);
