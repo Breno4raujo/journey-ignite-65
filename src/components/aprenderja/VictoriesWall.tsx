@@ -32,14 +32,14 @@ export function VictoriesWall({ victories }: Props) {
   );
   return (
     <section className="rounded-2xl bg-card border border-border p-5 shadow-soft">
-      <div className="flex items-baseline justify-between">
-        <div>
+      <div className="flex items-baseline justify-between flex-wrap gap-2">
+        <div className="min-w-0">
           <h3 className="font-semibold tracking-tight">Minhas vitórias</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             Releia aqui nos dias difíceis. Você já provou que é capaz.
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">{sorted.length} guardadas</p>
+        <p className="text-xs text-muted-foreground shrink-0">{sorted.length} guardadas</p>
       </div>
 
       {sorted.length === 0 ? (

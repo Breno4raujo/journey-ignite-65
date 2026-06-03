@@ -30,7 +30,7 @@ export function ImpactCalculator({ remainingLessons, minutesPerLesson = 30 }: Pr
         <div className="h-10 w-10 rounded-xl bg-accent-soft text-accent grid place-items-center shrink-0">
           <CalendarClock className="h-5 w-5" />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h3 className="font-semibold tracking-tight">Calculadora de impacto</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             Veja como pequenos minutos por dia mudam a sua data de chegada.
@@ -72,7 +72,7 @@ export function ImpactCalculator({ remainingLessons, minutesPerLesson = 30 }: Pr
             Você já concluiu tudo — sem mais contagens. Aproveite a conquista! 🎉
           </p>
         ) : (
-          <p className="mt-1 text-sm text-foreground leading-relaxed">
+          <p className="mt-1 text-sm text-foreground leading-relaxed break-words">
             Com <span className="font-semibold">{minutesPerDay} minutos por dia</span>, você termina em{" "}
             <span className="font-semibold text-primary">
               {weeks} {weeks === 1 ? "semana" : "semanas"}
