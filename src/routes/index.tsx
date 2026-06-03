@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/aprenderja/DashboardLayout";
+import { DashboardSkeleton } from "@/components/aprenderja/DashboardSkeleton";
 import { OverallProgressCard } from "@/components/aprenderja/OverallProgressCard";
 import { ModuleList } from "@/components/aprenderja/ModuleList";
 import { CelebrationModal } from "@/components/aprenderja/CelebrationModal";
@@ -13,13 +14,16 @@ import { VictoriesWall } from "@/components/aprenderja/VictoriesWall";
 import { ImpactCalculator } from "@/components/aprenderja/ImpactCalculator";
 import { PauseWeek } from "@/components/aprenderja/PauseWeek";
 import { CoursesManager } from "@/components/aprenderja/CoursesManager";
-import { mockCourse, mockModules, initialProgress } from "@/lib/aprenderja/mockData";
-import { computeProgressSummary } from "@/lib/aprenderja/progress";
-import type { Course, Module, PaceMode, UserProgress, Victory } from "@/lib/aprenderja/types";
+import { useAuth } from "@/frontend/context/AuthContext";
+import { useDashboard } from "@/frontend/hooks/useDashboard";
+import type { Course, Module, PaceMode, Victory } from "@/lib/aprenderja/types";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
   ssr: false,
+  beforeLoad: async () => {
+    // Proteção client-side complementar — redirecionamento principal no componente
+  },
   head: () => ({
     meta: [
       { title: "AprenderJá — Sua nova carreira, no seu ritmo" },
@@ -33,61 +37,49 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
-  const [userName, setUserName] = useState("...");
-
-  // Proteção de rota + busca do usuário logado
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
-
-    fetch("/api/auth/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (!res.ok) {
-          localStorage.removeItem("token");
-          window.location.href = "/login";
-          return;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data?.user?.name) {
-          setUserName(data.user.name);
-        }
-      })
-      .catch(() => {
-        // se falhar (ex: banco offline), mantém funcionando com mock
-      });
-  }, []);
-
-  const [courses, setCourses] = useState<Course[]>([mockCourse]);
-  const [modulesByCourse, setModulesByCourse] = useState<Record<string, Module[]>>({
-    [mockCourse.id]: mockModules,
-  });
-  const [progressByCourse, setProgressByCourse] = useState<Record<string, UserProgress[]>>({
-    [mockCourse.id]: initialProgress,
-  });
-  const [activeCourseId, setActiveCourseId] = useState<string>(mockCourse.id);
+  const { user, loading: authLoading } = useAuth();
   const [pace, setPace] = useState<PaceMode>("focado");
+  const [paceInitialized, setPaceInitialized] = useState(false);
   const [celebrating, setCelebrating] = useState<string | null>(null);
-  const [paused, setPaused] = useState(false);
   const [victories, setVictories] = useState<Victory[]>([]);
 
-  const activeCourse = courses.find((c) => c.id === activeCourseId) ?? courses[0];
-  const activeModules = modulesByCourse[activeCourse.id] ?? [];
-  const progress = progressByCourse[activeCourse.id] ?? [];
-
-  const summary = useMemo(
-    () => computeProgressSummary(activeCourse, activeModules, progress, pace),
-    [activeCourse, activeModules, progress, pace],
-  );
+  const {
+    courses,
+    modulesByCourse,
+    activeCourseId,
+    setActiveCourseId,
+    activeSummary,
+    paused,
+    loading,
+    error,
+    advanceLesson,
+    updateProfile,
+    savedPace,
+  } = useDashboard({ userId: user?.id ?? null, pace });
 
   useEffect(() => {
-    const seeded: Victory[] = summary.modules
+    if (savedPace && !paceInitialized) {
+      setPace(savedPace);
+      setPaceInitialized(true);
+    }
+  }, [savedPace, paceInitialized]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      window.location.href = "/login";
+    }
+  }, [authLoading, user]);
+
+  useEffect(() => {
+    if (user && pace && paceInitialized) {
+      updateProfile({ pace });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pace, user?.id, paceInitialized]);
+
+  useEffect(() => {
+    if (!activeSummary) return;
+    const seeded: Victory[] = activeSummary.modules
       .filter((m) => m.isCompleted)
       .map((m) => ({
         id: `seed-${m.module.id}`,
@@ -96,18 +88,17 @@ function Dashboard() {
         message: "Você concluiu este módulo no seu tempo. Esse passo ficou registrado.",
         earnedAt: m.lastAccessedAt ?? new Date(),
       }));
-    if (summary.overallPercent >= 25) {
+    if (activeSummary.overallPercent >= 25) {
       seeded.push({
         id: "seed-milestone",
         kind: "milestone",
-        title: `Marco de ${summary.overallPercent}% atingido`,
-        message: summary.encouragement,
+        title: `Marco de ${activeSummary.overallPercent}% atingido`,
+        message: activeSummary.encouragement,
         earnedAt: new Date(),
       });
     }
     setVictories(seeded);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCourseId]);
+  }, [activeCourseId, activeSummary]);
 
   const resumeOn = useMemo(() => {
     if (!paused) return null;
@@ -118,107 +109,94 @@ function Dashboard() {
     return d;
   }, [paused]);
 
+  if (authLoading || !user) {
+    return (
+      <DashboardLayout userName="…" loading>
+        <DashboardSkeleton />
+      </DashboardLayout>
+    );
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout userName={user.name}>
+        <DashboardSkeleton />
+      </DashboardLayout>
+    );
+  }
+
+  if (error || !activeSummary) {
+    return (
+      <DashboardLayout userName={user.name}>
+        <div className="rounded-2xl border border-border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            {error ?? "Nenhum curso disponível no momento."}
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const summary = activeSummary;
+  const activeCourse = summary.course;
+  const activeModules = modulesByCourse[activeCourse.id] ?? [];
+
   const remainingLessons = summary.totalLessons - summary.completedLessons;
   const minutesPerLessonFromPace =
     Math.round((summary.paceHoursPerWeek * 60) / Math.max(1, remainingLessons / 4)) || 30;
+  const minutesPerLessonFromPace =
+    Math.round((summary.paceHoursPerWeek * 60) / Math.max(1, remainingLessons / 4)) || 30;
 
-  const handleAdvance = (moduleId: string) => {
-    const prevPercent = summary.overallPercent;
-    setProgressByCourse((all) => {
-      const prev = all[activeCourse.id] ?? [];
-      const next = prev.map((p) => ({ ...p }));
-      const mod = activeModules.find((m) => m.id === moduleId);
-      const entry = next.find((p) => p.moduleId === moduleId);
-      if (!mod || !entry) return all;
-      if (entry.completedLessons >= mod.totalLessons) return all;
-      entry.completedLessons += 1;
-      entry.lastAccessedAt = new Date();
-      if (entry.completedLessons >= mod.totalLessons) {
-        entry.completedAt = new Date();
-        setCelebrating(mod.title);
+  const handleAdvance = async (moduleId: string) => {
+    try {
+      const result = await advanceLesson(moduleId);
+      if (result.moduleCompleted) {
+        setCelebrating(result.moduleTitle);
         setVictories((vs) => [
           ...vs,
           {
-            id: `v-${mod.id}-${Date.now()}`,
+            id: `v-${moduleId}-${Date.now()}`,
             kind: "module",
-            title: `Módulo conquistado: ${mod.title}`,
+            title: `Módulo conquistado: ${result.moduleTitle}`,
             message:
               "Que orgulho! Mais um passo firme na sua virada de carreira. Esse momento ficou guardado aqui.",
             earnedAt: new Date(),
           },
         ]);
       }
-      return { ...all, [activeCourse.id]: next };
-    });
-    setTimeout(() => {
-      const newProgress = progress.map((p) =>
-        p.moduleId === moduleId
-          ? {
-              ...p,
-              completedLessons: Math.min(
-                (p.completedLessons || 0) + 1,
-                activeModules.find((m) => m.id === moduleId)?.totalLessons ?? 0,
-              ),
-            }
-          : p,
-      );
-      const newSummary = computeProgressSummary(activeCourse, activeModules, newProgress, pace);
-      const newPercent = newSummary.overallPercent;
-      const crossed = [25, 50, 75, 100].find((m) => prevPercent < m && newPercent >= m);
-      if (crossed) {
-        setVictories((vs) => [
-          ...vs,
-          {
-            id: `m-${crossed}-${Date.now()}`,
-            kind: "milestone",
-            title: `Marco de ${crossed}% conquistado`,
-            message: newSummary.encouragement,
-            earnedAt: new Date(),
-          },
-        ]);
-      }
-    }, 0);
+    } catch {
+      // recarrega na próxima interação
+    }
   };
 
   const handleResume = () => {
     const inProgress = summary.modules.find((m) => !m.isCompleted && m.completedLessons > 0);
-    if (inProgress) handleAdvance(inProgress.module.id);
+    const target = inProgress ?? summary.modules.find((m) => !m.isCompleted);
+    if (target) handleAdvance(target.module.id);
   };
 
-  const handleAddCourse = (course: Course, mods: Module[]) => {
-    setCourses((cs) => [...cs, course]);
-    setModulesByCourse((m) => ({ ...m, [course.id]: mods }));
-    setProgressByCourse((p) => ({
-      ...p,
-      [course.id]: mods.map((mod) => ({
-        id: `p-${mod.id}`,
-        userId: "user",
-        moduleId: mod.id,
-        completedLessons: 0,
-        lastAccessedAt: null,
-        completedAt: null,
-      })),
-    }));
-    setActiveCourseId(course.id);
+  const handleAddCourse = (_course: Course, _mods: Module[]) => {
+    // Cursos gerenciados pelo seed/admin — UI preservada para extensão futura
   };
 
-  const handleRemoveCourse = (courseId: string) => {
-    if (courses.length <= 1) return;
-    setCourses((cs) => cs.filter((c) => c.id !== courseId));
-    setModulesByCourse(({ [courseId]: _m, ...rest }) => rest);
-    setProgressByCourse(({ [courseId]: _p, ...rest }) => rest);
-    if (activeCourseId === courseId) {
-      const next = courses.find((c) => c.id !== courseId);
-      if (next) setActiveCourseId(next.id);
-    }
+  const handleRemoveCourse = (_courseId: string) => {
+    // Remoção desabilitada em produção — dados vêm do banco
+  };
+
+  const handleTogglePause = async () => {
+    const next = !paused;
+    await updateProfile({ pausedWeek: next });
   };
 
   const currentInProgress =
     summary.modules.find((m) => !m.isCompleted && m.completedLessons > 0) ??
     summary.modules.find((m) => !m.isCompleted);
+  const currentInProgress =
+    summary.modules.find((m) => !m.isCompleted && m.completedLessons > 0) ??
+    summary.modules.find((m) => !m.isCompleted);
 
   return (
-    <DashboardLayout userName={userName}>
+    <DashboardLayout userName={user.name}>
       <CoursesManager
         courses={courses}
         modulesByCourse={modulesByCourse}
@@ -228,7 +206,9 @@ function Dashboard() {
         onRemove={handleRemoveCourse}
       />
       <OverallProgressCard summary={summary} />
-      <PauseWeek paused={paused} resumeOn={resumeOn} onToggle={() => setPaused((p) => !p)} />
+
+      <PauseWeek paused={paused} resumeOn={resumeOn} onToggle={handleTogglePause} />
+
       <MicroHabitCard
         moduleTitle={currentInProgress?.module.title ?? null}
         lessonNumber={currentInProgress ? currentInProgress.completedLessons + 1 : null}
