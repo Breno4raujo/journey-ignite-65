@@ -134,21 +134,21 @@ export function useDashboard({ userId, pace }: UseDashboardOptions) {
     [userId],
   );
 
-  const activeSummary = activeCourseId === mockCourse.id ? summary : summary;
-
   return {
     courses,
     modulesByCourse,
-    summaries,
+    summaries: [summary],
     activeCourseId,
     setActiveCourseId,
-    activeSummary,
+    activeSummary: summary,
     paused,
     loading,
-    error,
+    error: null as string | null,
     advanceLesson,
     updateProfile,
-    reload: loadData,
+    reload: async () => {
+      if (userId) setProgress(readProgress(userId));
+    },
     savedPace,
   };
 }
