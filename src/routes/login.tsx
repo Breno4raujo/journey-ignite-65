@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { GraduationCap } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/frontend/context/AuthContext";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -16,41 +17,36 @@ export const Route = createFileRoute("/login")({
 type Tab = "login" | "register";
 
 function LoginPage() {
-  const navigate = (path: string) => {
-    window.location.href = path;
-  };
+  const navigate = useNavigate();
+  const { user, loading, login, register } = useAuth();
   const [tab, setTab] = useState<Tab>("login");
 
-  // Login state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
-  // Register state
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regError, setRegError] = useState<string | null>(null);
   const [regLoading, setRegLoading] = useState(false);
 
+  useEffect(() => {
+    if (!loading && user) navigate({ to: "/" });
+  }, [loading, user, navigate]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     setLoginLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setLoginError(data.error ?? "Erro ao entrar.");
+      const err = await login(loginEmail, loginPassword);
+      if (err) {
+        setLoginError(err);
         return;
       }
-      localStorage.setItem("token", data.token);
-      navigate("/");
+      navigate({ to: "/" });
     } catch {
       setLoginError("Erro de conexão. Tente novamente.");
     } finally {
@@ -63,18 +59,12 @@ function LoginPage() {
     setRegError(null);
     setRegLoading(true);
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: regName, email: regEmail, password: regPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setRegError(data.error ?? "Erro ao criar conta.");
+      const err = await register(regName, regEmail, regPassword);
+      if (err) {
+        setRegError(err);
         return;
       }
-      localStorage.setItem("token", data.token);
-      navigate("/");
+      navigate({ to: "/" });
     } catch {
       setRegError("Erro de conexão. Tente novamente.");
     } finally {
@@ -82,9 +72,16 @@ function LoginPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
-      {/* Logo */}
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-8">
       <div className="flex items-center gap-3 mb-8">
         <div className="h-11 w-11 rounded-2xl bg-gradient-primary grid place-items-center shadow-soft">
           <GraduationCap className="h-6 w-6 text-primary-foreground" />
@@ -95,11 +92,12 @@ function LoginPage() {
         </div>
       </div>
 
-      {/* Card */}
-      <div className="w-full max-w-md bg-card rounded-2xl shadow-soft border border-border p-8">
-        {/* Tabs */}
-        <div className="flex rounded-xl bg-muted p-1 mb-6">
+      <div className="w-full max-w-md bg-card rounded-2xl shadow-soft border border-border p-6 sm:p-8">
+        <div className="flex rounded-xl bg-muted p-1 mb-6" role="tablist" aria-label="Autenticação">
           <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "login"}
             onClick={() => {
               setTab("login");
               setLoginError(null);
@@ -113,6 +111,9 @@ function LoginPage() {
             Entrar
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "register"}
             onClick={() => {
               setTab("register");
               setRegError(null);
@@ -127,12 +128,14 @@ function LoginPage() {
           </button>
         </div>
 
-        {/* Login Form */}
         {tab === "login" && (
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4" aria-label="Formulário de login">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">E-mail</label>
+              <label htmlFor="login-email" className="block text-sm font-medium text-foreground mb-1.5">
+                E-mail
+              </label>
               <input
+                id="login-email"
                 type="email"
                 required
                 autoComplete="email"
@@ -143,8 +146,11 @@ function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Senha</label>
+              <label htmlFor="login-password" className="block text-sm font-medium text-foreground mb-1.5">
+                Senha
+              </label>
               <input
+                id="login-password"
                 type="password"
                 required
                 autoComplete="current-password"
@@ -156,7 +162,7 @@ function LoginPage() {
             </div>
 
             {loginError && (
-              <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3.5 py-2.5">
+              <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3.5 py-2.5" role="alert">
                 {loginError}
               </p>
             )}
@@ -171,12 +177,14 @@ function LoginPage() {
           </form>
         )}
 
-        {/* Register Form */}
         {tab === "register" && (
-          <form onSubmit={handleRegister} className="space-y-4">
+          <form onSubmit={handleRegister} className="space-y-4" aria-label="Formulário de registro">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Nome</label>
+              <label htmlFor="reg-name" className="block text-sm font-medium text-foreground mb-1.5">
+                Nome
+              </label>
               <input
+                id="reg-name"
                 type="text"
                 required
                 autoComplete="name"
@@ -187,8 +195,11 @@ function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">E-mail</label>
+              <label htmlFor="reg-email" className="block text-sm font-medium text-foreground mb-1.5">
+                E-mail
+              </label>
               <input
+                id="reg-email"
                 type="email"
                 required
                 autoComplete="email"
@@ -199,8 +210,11 @@ function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Senha</label>
+              <label htmlFor="reg-password" className="block text-sm font-medium text-foreground mb-1.5">
+                Senha
+              </label>
               <input
+                id="reg-password"
                 type="password"
                 required
                 autoComplete="new-password"
@@ -213,7 +227,7 @@ function LoginPage() {
             </div>
 
             {regError && (
-              <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3.5 py-2.5">
+              <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3.5 py-2.5" role="alert">
                 {regError}
               </p>
             )}
@@ -229,7 +243,7 @@ function LoginPage() {
         )}
       </div>
 
-      <p className="mt-6 text-xs text-muted-foreground text-center">
+      <p className="mt-6 text-xs text-muted-foreground text-center max-w-sm">
         Feito com cuidado para quem está recomeçando. Você não está sozinho(a).
       </p>
     </div>

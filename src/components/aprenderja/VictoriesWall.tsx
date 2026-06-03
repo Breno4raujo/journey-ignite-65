@@ -9,7 +9,15 @@ const ICON = {
   badge: Heart,
 } as const;
 
-function relTime(d: Date): string {
+const getTimestamp = (date: string | Date | undefined) => {
+  if (!date) return 0;
+  const parsed = new Date(date);
+  return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+};
+
+function relTime(date: string | Date): string {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
   const diff = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
   if (diff <= 0) return "hoje";
   if (diff === 1) return "ontem";
@@ -19,7 +27,9 @@ function relTime(d: Date): string {
 }
 
 export function VictoriesWall({ victories }: Props) {
-  const sorted = [...victories].sort((a, b) => b.earnedAt.getTime() - a.earnedAt.getTime());
+  const sorted = [...victories].sort(
+    (a, b) => getTimestamp(b.earnedAt) - getTimestamp(a.earnedAt),
+  );
   return (
     <section className="rounded-2xl bg-card border border-border p-5 shadow-soft">
       <div className="flex items-baseline justify-between">
