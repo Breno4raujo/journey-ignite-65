@@ -30,7 +30,7 @@ export function ImpactCalculator({ remainingLessons, minutesPerLesson = 30 }: Pr
         <div className="h-10 w-10 rounded-xl bg-accent-soft text-accent grid place-items-center shrink-0">
           <CalendarClock className="h-5 w-5" />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h3 className="font-semibold tracking-tight">Calculadora de impacto</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             Veja como pequenos minutos por dia mudam a sua data de chegada.
