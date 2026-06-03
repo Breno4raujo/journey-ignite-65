@@ -1,108 +1,140 @@
-import { useCallback, useEffect, useState } from "react";
-import type { Course, Module, PaceMode, ProgressSummary } from "@/lib/aprenderja/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { mockCourse, mockModules, initialProgress } from "@/lib/aprenderja/mockData";
+import { computeProgressSummary } from "@/lib/aprenderja/progress";
+import type { Course, Module, PaceMode, UserProgress } from "@/lib/aprenderja/types";
 
 interface UseDashboardOptions {
   userId: string | null;
   pace: PaceMode;
 }
 
+interface StoredProfile {
+  pace?: PaceMode;
+  pausedWeek?: boolean;
+}
+
+interface StoredProgress {
+  moduleId: string;
+  completedLessons: number;
+  lastAccessedAt: string | null;
+  completedAt: string | null;
+}
+
+const progressKey = (userId: string) => `aprenderja:progress:${userId}`;
+const profileKey = (userId: string) => `aprenderja:profile:${userId}`;
+
+function readProgress(userId: string): UserProgress[] {
+  if (typeof window === "undefined") return [];
+  const raw = localStorage.getItem(progressKey(userId));
+  if (!raw) {
+    const seed = initialProgress.map((p) => ({ ...p, userId }));
+    return seed;
+  }
+  try {
+    const parsed: StoredProgress[] = JSON.parse(raw);
+    return parsed.map((p, i) => ({
+      id: `p-${i}`,
+      userId,
+      moduleId: p.moduleId,
+      completedLessons: p.completedLessons,
+      lastAccessedAt: p.lastAccessedAt ? new Date(p.lastAccessedAt) : null,
+      completedAt: p.completedAt ? new Date(p.completedAt) : null,
+    }));
+  } catch {
+    return initialProgress.map((p) => ({ ...p, userId }));
+  }
+}
+
+function writeProgress(userId: string, progress: UserProgress[]) {
+  const serialized: StoredProgress[] = progress.map((p) => ({
+    moduleId: p.moduleId,
+    completedLessons: p.completedLessons,
+    lastAccessedAt: p.lastAccessedAt ? p.lastAccessedAt.toISOString() : null,
+    completedAt: p.completedAt ? p.completedAt.toISOString() : null,
+  }));
+  localStorage.setItem(progressKey(userId), JSON.stringify(serialized));
+}
+
+function readProfile(userId: string): StoredProfile {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(profileKey(userId)) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeProfile(userId: string, profile: StoredProfile) {
+  localStorage.setItem(profileKey(userId), JSON.stringify(profile));
+}
+
 export function useDashboard({ userId, pace }: UseDashboardOptions) {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [modulesByCourse, setModulesByCourse] = useState<Record<string, Module[]>>({});
-  const [summaries, setSummaries] = useState<ProgressSummary[]>([]);
-  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
+  const courses: Course[] = useMemo(() => [mockCourse], []);
+  const modulesByCourse: Record<string, Module[]> = useMemo(
+    () => ({ [mockCourse.id]: mockModules }),
+    [],
+  );
+
+  const [progress, setProgress] = useState<UserProgress[]>([]);
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(mockCourse.id);
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [savedPace, setSavedPace] = useState<PaceMode | null>(null);
 
-  const loadData = useCallback(async () => {
+  useEffect(() => {
     if (!userId) return;
     setLoading(true);
-    setError(null);
+    const p = readProgress(userId);
+    const prof = readProfile(userId);
+    setProgress(p);
+    setPaused(prof.pausedWeek ?? false);
+    if (prof.pace) setSavedPace(prof.pace);
+    setLoading(false);
+  }, [userId]);
 
-    try {
-      const [coursesRes, progressRes] = await Promise.all([
-        fetch("/api/courses", { credentials: "include" }),
-        fetch(`/api/progress/${userId}?pace=${pace}`, { credentials: "include" }),
-      ]);
-
-      if (!coursesRes.ok || !progressRes.ok) {
-        throw new Error("Não foi possível carregar seus dados.");
-      }
-
-      const coursesData = await coursesRes.json();
-      const progressData = await progressRes.json();
-
-      const loadedCourses: Course[] = (coursesData.courses ?? []).map(
-        (c: Course & { modules?: Module[] }) => ({
-          id: c.id,
-          title: c.title,
-          description: c.description,
-          totalModules: c.totalModules,
-        }),
-      );
-
-      const modulesMap: Record<string, Module[]> = {};
-      for (const c of coursesData.courses ?? []) {
-        modulesMap[c.id] = (c.modules ?? []).map((m: Module) => ({
-          id: m.id,
-          courseId: c.id,
-          title: m.title,
-          order: m.order,
-          totalLessons: m.totalLessons,
-        }));
-      }
-
-      setCourses(loadedCourses);
-      setModulesByCourse(modulesMap);
-      setSummaries(progressData.summaries ?? []);
-      setPaused(progressData.profile?.pausedWeek ?? false);
-      setActiveCourseId((prev) => prev ?? loadedCourses[0]?.id ?? null);
-
-      const loadedPace = progressData.pace as PaceMode | undefined;
-      if (loadedPace) setSavedPace(loadedPace);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro desconhecido.");
-    } finally {
-      setLoading(false);
-    }
-  }, [userId, pace]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const summary = useMemo(
+    () => computeProgressSummary(mockCourse, mockModules, progress, pace),
+    [progress, pace],
+  );
 
   const advanceLesson = useCallback(
     async (moduleId: string) => {
-      const res = await fetch("/api/progress/lesson", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ moduleId }),
+      if (!userId) throw new Error("Sem usuário ativo.");
+      const mod = mockModules.find((m) => m.id === moduleId);
+      if (!mod) throw new Error("Módulo não encontrado.");
+      let moduleCompleted = false;
+      const now = new Date();
+      const next = progress.map((p) => {
+        if (p.moduleId !== moduleId) return p;
+        const completedLessons = Math.min(mod.totalLessons, p.completedLessons + 1);
+        const isDone = completedLessons >= mod.totalLessons;
+        if (isDone && !p.completedAt) moduleCompleted = true;
+        return {
+          ...p,
+          completedLessons,
+          lastAccessedAt: now,
+          completedAt: isDone ? p.completedAt ?? now : p.completedAt,
+        };
       });
-      if (!res.ok) throw new Error("Erro ao registrar progresso.");
-      const data = await res.json();
-      await loadData();
-      return data;
+      setProgress(next);
+      writeProgress(userId, next);
+      return { moduleCompleted, moduleTitle: mod.title };
     },
-    [loadData],
+    [progress, userId],
   );
 
   const updateProfile = useCallback(
     async (data: { pace?: PaceMode; pausedWeek?: boolean }) => {
-      await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
+      if (!userId) return;
+      const current = readProfile(userId);
+      const next = { ...current, ...data };
+      writeProfile(userId, next);
       if (data.pausedWeek !== undefined) setPaused(data.pausedWeek);
     },
-    [],
+    [userId],
   );
 
-  const activeSummary = summaries.find((s) => s.course.id === activeCourseId) ?? summaries[0] ?? null;
+  const activeSummary = activeCourseId === mockCourse.id ? summary : summary;
 
   return {
     courses,
