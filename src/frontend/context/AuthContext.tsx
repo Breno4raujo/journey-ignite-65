@@ -18,36 +18,14 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const USERS_KEY = "aprenderja:users";
-const SESSION_KEY = "aprenderja:session";
-
-type StoredUser = AuthUser & { password: string };
-
-function readUsers(): StoredUser[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function writeUsers(users: StoredUser[]) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-
-function readSession(): AuthUser | null {
+function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null");
-  } catch {
-    return null;
-  }
+  return localStorage.getItem("token");
 }
 
-function writeSession(user: AuthUser | null) {
-  if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-  else localStorage.removeItem(SESSION_KEY);
+function setToken(token: string | null) {
+  if (token) localStorage.setItem("token", token);
+  else localStorage.removeItem("token");
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -55,64 +33,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshSession = useCallback(async () => {
-    const me = readSession();
-    setUser(me);
-    return !!me;
+    const token = getToken();
+    if (!token) {
+      setUser(null);
+      return false;
+    }
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        setToken(null);
+        setUser(null);
+        return false;
+      }
+      const data = await res.json();
+      setUser(data.user);
+      return true;
+    } catch {
+      setUser(null);
+      return false;
+    }
   }, []);
 
   useEffect(() => {
-    setUser(readSession());
-    setLoading(false);
-  }, []);
+    refreshSession().finally(() => setLoading(false));
+  }, [refreshSession]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const normalized = email.trim().toLowerCase();
-    const users = readUsers();
-    const found = users.find((u) => u.email.toLowerCase() === normalized);
-    if (!found) return "E-mail não cadastrado.";
-    if (found.password !== password) return "Senha incorreta.";
-    const session: AuthUser = {
-      id: found.id,
-      name: found.name,
-      email: found.email,
-      createdAt: found.createdAt,
-    };
-    writeSession(session);
-    setUser(session);
-    return null;
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return data.error ?? "Erro ao entrar.";
+      setToken(data.token);
+      setUser(data.user);
+      return null;
+    } catch {
+      return "Erro de conexão. Tente novamente.";
+    }
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
-    const normalized = email.trim().toLowerCase();
-    if (!name.trim()) return "Informe seu nome.";
-    if (!normalized) return "Informe um e-mail válido.";
-    if (password.length < 6) return "A senha deve ter pelo menos 6 caracteres.";
-    const users = readUsers();
-    if (users.some((u) => u.email.toLowerCase() === normalized)) {
-      return "Já existe uma conta com este e-mail.";
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return data.error ?? "Erro ao criar conta.";
+      setToken(data.token);
+      setUser(data.user);
+      return null;
+    } catch {
+      return "Erro de conexão. Tente novamente.";
     }
-    const newUser: StoredUser = {
-      id: crypto.randomUUID(),
-      name: name.trim(),
-      email: normalized,
-      createdAt: new Date().toISOString(),
-      password,
-    };
-    writeUsers([...users, newUser]);
-    const session: AuthUser = {
-      id: newUser.id,
-      name: newUser.name,
-      email: newUser.email,
-      createdAt: newUser.createdAt,
-    };
-    writeSession(session);
-    setUser(session);
-    return null;
   }, []);
 
   const logout = useCallback(async () => {
-    writeSession(null);
+    setToken(null);
     setUser(null);
+    window.location.href = "/login";
   }, []);
 
   const value = useMemo(

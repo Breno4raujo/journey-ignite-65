@@ -13,47 +13,7 @@ interface StoredProfile {
   pausedWeek?: boolean;
 }
 
-interface StoredProgress {
-  moduleId: string;
-  completedLessons: number;
-  lastAccessedAt: string | null;
-  completedAt: string | null;
-}
-
-const progressKey = (userId: string) => `aprenderja:progress:${userId}`;
 const profileKey = (userId: string) => `aprenderja:profile:${userId}`;
-
-function readProgress(userId: string): UserProgress[] {
-  if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem(progressKey(userId));
-  if (!raw) {
-    const seed = initialProgress.map((p) => ({ ...p, userId }));
-    return seed;
-  }
-  try {
-    const parsed: StoredProgress[] = JSON.parse(raw);
-    return parsed.map((p, i) => ({
-      id: `p-${i}`,
-      userId,
-      moduleId: p.moduleId,
-      completedLessons: p.completedLessons,
-      lastAccessedAt: p.lastAccessedAt ? new Date(p.lastAccessedAt) : null,
-      completedAt: p.completedAt ? new Date(p.completedAt) : null,
-    }));
-  } catch {
-    return initialProgress.map((p) => ({ ...p, userId }));
-  }
-}
-
-function writeProgress(userId: string, progress: UserProgress[]) {
-  const serialized: StoredProgress[] = progress.map((p) => ({
-    moduleId: p.moduleId,
-    completedLessons: p.completedLessons,
-    lastAccessedAt: p.lastAccessedAt ? p.lastAccessedAt.toISOString() : null,
-    completedAt: p.completedAt ? p.completedAt.toISOString() : null,
-  }));
-  localStorage.setItem(progressKey(userId), JSON.stringify(serialized));
-}
 
 function readProfile(userId: string): StoredProfile {
   if (typeof window === "undefined") return {};
@@ -68,29 +28,68 @@ function writeProfile(userId: string, profile: StoredProfile) {
   localStorage.setItem(profileKey(userId), JSON.stringify(profile));
 }
 
-export function useDashboard({ userId, pace }: UseDashboardOptions) {
-  const courses: Course[] = useMemo(() => [mockCourse], []);
-  const modulesByCourse: Record<string, Module[]> = useMemo(
-    () => ({ [mockCourse.id]: mockModules }),
-    [],
-  );
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("token");
+}
 
+export function useDashboard({ userId, pace }: UseDashboardOptions) {
+  const [courses] = useState<Course[]>([mockCourse]);
+  const [modulesByCourse] = useState<Record<string, Module[]>>({
+    [mockCourse.id]: mockModules,
+  });
   const [progress, setProgress] = useState<UserProgress[]>([]);
-  const [activeCourseId, setActiveCourseId] = useState<string | null>(mockCourse.id);
+  const [activeCourseId, setActiveCourseId] = useState<string>(mockCourse.id);
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [savedPace, setSavedPace] = useState<PaceMode | null>(null);
 
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
-    const p = readProgress(userId);
+    setError(null);
+
+    const token = getToken();
     const prof = readProfile(userId);
-    setProgress(p);
     setPaused(prof.pausedWeek ?? false);
     if (prof.pace) setSavedPace(prof.pace);
-    setLoading(false);
-  }, [userId]);
+
+    // Tenta buscar progresso real da API
+    if (token) {
+      fetch(`/api/progress/${userId}?pace=${pace}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.summaries?.[0]?.modules) {
+            // Mapeia o progresso da API para o formato local
+            const apiProgress: UserProgress[] = data.summaries[0].modules.map(
+              (m: { module: { id: string }; completedLessons: number; lastAccessedAt: string | null; isCompleted: boolean }) => ({
+                id: `p-${m.module.id}`,
+                userId,
+                moduleId: m.module.id,
+                completedLessons: m.completedLessons,
+                lastAccessedAt: m.lastAccessedAt ? new Date(m.lastAccessedAt) : null,
+                completedAt: m.isCompleted ? new Date() : null,
+              }),
+            );
+            setProgress(apiProgress);
+          } else {
+            // Fallback para mock se API não retornar dados
+            setProgress(initialProgress.map((p) => ({ ...p, userId })));
+          }
+        })
+        .catch(() => {
+          // Se banco offline, usa mock
+          setProgress(initialProgress.map((p) => ({ ...p, userId })));
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setProgress(initialProgress.map((p) => ({ ...p, userId })));
+      setLoading(false);
+    }
+  }, [userId, pace]);
 
   const summary = useMemo(
     () => computeProgressSummary(mockCourse, mockModules, progress, pace),
@@ -102,25 +101,63 @@ export function useDashboard({ userId, pace }: UseDashboardOptions) {
       if (!userId) throw new Error("Sem usuário ativo.");
       const mod = mockModules.find((m) => m.id === moduleId);
       if (!mod) throw new Error("Módulo não encontrado.");
+
+      const token = getToken();
+
+      // Tenta registrar na API
+      if (token) {
+        try {
+          const res = await fetch("/api/progress/lesson", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ moduleId }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            // Atualiza progresso local com resposta da API
+            setProgress((prev) =>
+              prev.map((p) =>
+                p.moduleId === moduleId
+                  ? {
+                      ...p,
+                      completedLessons: data.lessonNumber,
+                      lastAccessedAt: new Date(),
+                      completedAt: data.moduleCompleted ? new Date() : p.completedAt,
+                    }
+                  : p,
+              ),
+            );
+            return { moduleCompleted: data.moduleCompleted, moduleTitle: data.moduleTitle };
+          }
+        } catch {
+          // Se falhar, continua com lógica local
+        }
+      }
+
+      // Fallback local
       let moduleCompleted = false;
       const now = new Date();
-      const next = progress.map((p) => {
-        if (p.moduleId !== moduleId) return p;
-        const completedLessons = Math.min(mod.totalLessons, p.completedLessons + 1);
-        const isDone = completedLessons >= mod.totalLessons;
-        if (isDone && !p.completedAt) moduleCompleted = true;
-        return {
-          ...p,
-          completedLessons,
-          lastAccessedAt: now,
-          completedAt: isDone ? p.completedAt ?? now : p.completedAt,
-        };
-      });
-      setProgress(next);
-      writeProgress(userId, next);
+      setProgress((prev) =>
+        prev.map((p) => {
+          if (p.moduleId !== moduleId) return p;
+          const completedLessons = Math.min(mod.totalLessons, p.completedLessons + 1);
+          const isDone = completedLessons >= mod.totalLessons;
+          if (isDone && !p.completedAt) moduleCompleted = true;
+          return {
+            ...p,
+            completedLessons,
+            lastAccessedAt: now,
+            completedAt: isDone ? p.completedAt ?? now : p.completedAt,
+          };
+        }),
+      );
+
       return { moduleCompleted, moduleTitle: mod.title };
     },
-    [progress, userId],
+    [userId],
   );
 
   const updateProfile = useCallback(
@@ -143,12 +180,10 @@ export function useDashboard({ userId, pace }: UseDashboardOptions) {
     activeSummary: summary,
     paused,
     loading,
-    error: null as string | null,
+    error,
     advanceLesson,
     updateProfile,
-    reload: async () => {
-      if (userId) setProgress(readProgress(userId));
-    },
+    reload: async () => {},
     savedPace,
   };
 }
