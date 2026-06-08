@@ -45,11 +45,17 @@ export function PaceSelector({ pace, onChange }: Props) {
               }`}
             >
               <Icon className={`h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
-              <p className={`mt-2 text-sm font-medium ${active ? "text-primary" : "text-foreground"}`}>
+              <p
+                className={`mt-2 text-xs sm:text-sm font-medium leading-tight ${active ? "text-primary" : "text-foreground"}`}
+              >
                 {o.label}
               </p>
-              <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{o.helper}</p>
-              <p className="text-[11px] font-medium mt-1.5 text-foreground/70">{PACE_HOURS[o.value]}h/sem</p>
+              <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                {o.helper}
+              </p>
+              <p className="text-[10px] sm:text-[11px] font-medium mt-1.5 text-foreground/70">
+                {PACE_HOURS[o.value]}h/sem
+              </p>
             </button>
           );
         })}
