@@ -50,9 +50,28 @@ export function DashboardLayout({ userName, children, loading }: Props) {
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">{children}</main>
-      <footer className="mx-auto max-w-5xl px-4 sm:px-6 py-8 sm:py-10 text-center text-xs text-muted-foreground">
-        Feito com cuidado para quem está recomeçando. Você não está sozinho(a).
+      <footer className="mx-auto max-w-5xl px-4 sm:px-6 py-8 sm:py-10 text-center text-xs text-muted-foreground space-y-2">
+        <p>Feito com cuidado para quem está recomeçando. Você não está sozinho(a).</p>
+        <BuildBadge />
       </footer>
     </div>
+  );
+}
+
+function BuildBadge() {
+  const sha = typeof __APP_COMMIT__ !== "undefined" ? __APP_COMMIT__ : "dev";
+  const date = typeof __APP_COMMIT_DATE__ !== "undefined" ? __APP_COMMIT_DATE__ : "";
+  const msg = typeof __APP_COMMIT_MSG__ !== "undefined" ? __APP_COMMIT_MSG__ : "";
+  const formatted = date
+    ? new Date(date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+    : "";
+  return (
+    <p
+      className="font-mono text-[10px] opacity-70"
+      title={msg ? `${msg} — ${date}` : date}
+    >
+      build {sha}
+      {formatted ? ` · ${formatted}` : ""}
+    </p>
   );
 }
