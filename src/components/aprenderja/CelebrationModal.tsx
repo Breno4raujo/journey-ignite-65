@@ -59,11 +59,13 @@ export function CelebrationModal({ open, moduleTitle, onClose }: Props) {
           <PartyPopper className="h-8 w-8 text-primary-foreground" />
         </div>
 
-        <p className="mt-5 text-xs uppercase tracking-widest text-accent font-semibold">Módulo concluído!</p>
+        <p className="mt-5 text-xs uppercase tracking-widest text-accent font-semibold">
+          Parabéns, módulo concluído!
+        </p>
         <h2 className="mt-1 text-2xl font-bold tracking-tight">{moduleTitle}</h2>
         <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-          Que orgulho! Mais um passo firme na sua virada de carreira. Cada lição daqui pra frente é um
-          investimento em você.
+          Que orgulho! Mais um passo firme na sua virada de carreira. Cada lição daqui pra frente é
+          um investimento em você.
         </p>
 
         <button

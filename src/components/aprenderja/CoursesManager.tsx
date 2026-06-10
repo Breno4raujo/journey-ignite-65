@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookPlus, Check, Plus, Trash2, GraduationCap } from "lucide-react";
+import { BookPlus, Check, Plus, Trash2, GraduationCap, Pencil } from "lucide-react";
 import type { Course, Module } from "@/lib/aprenderja/types";
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   activeCourseId: string;
   onSelect: (courseId: string) => void;
   onAdd: (course: Course, modules: Module[]) => void;
+  onEdit: (courseId: string, patch: Pick<Course, "title" | "description">) => void;
   onRemove: (courseId: string) => void;
 }
 
@@ -26,15 +27,18 @@ export function CoursesManager({
   activeCourseId,
   onSelect,
   onAdd,
+  onEdit,
   onRemove,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<Pick<
+    Course,
+    "id" | "title" | "description"
+  > | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [weeklyHours, setWeeklyHours] = useState(5);
-  const [drafts, setDrafts] = useState<DraftModule[]>([
-    { title: "", totalLessons: 6 },
-  ]);
+  const [drafts, setDrafts] = useState<DraftModule[]>([{ title: "", totalLessons: 6 }]);
 
   const totalLessons = drafts.reduce((s, d) => s + (Number(d.totalLessons) || 0), 0);
   const estWeeks = weeklyHours > 0 ? Math.max(1, Math.ceil((totalLessons * 0.5) / weeklyHours)) : 0;
@@ -52,7 +56,10 @@ export function CoursesManager({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const cleanModules = drafts
-      .map((d) => ({ title: d.title.trim(), totalLessons: Math.max(1, Number(d.totalLessons) || 1) }))
+      .map((d) => ({
+        title: d.title.trim(),
+        totalLessons: Math.max(1, Number(d.totalLessons) || 1),
+      }))
       .filter((d) => d.title.length > 0);
     if (!title.trim() || cleanModules.length === 0) return;
     const courseId = makeId("c");
@@ -75,6 +82,15 @@ export function CoursesManager({
     setWeeklyHours(5);
     setDrafts([{ title: "", totalLessons: 6 }]);
     setOpen(false);
+  }
+
+  function handleSaveCourseEdit() {
+    if (!editingCourse) return;
+    onEdit(editingCourse.id, {
+      title: editingCourse.title,
+      description: editingCourse.description,
+    });
+    setEditingCourse(null);
   }
 
   return (
@@ -106,6 +122,7 @@ export function CoursesManager({
           const mods = modulesByCourse[c.id] ?? [];
           const lessons = mods.reduce((s, m) => s + m.totalLessons, 0);
           const active = c.id === activeCourseId;
+          const editing = editingCourse?.id === c.id;
           return (
             <li
               key={c.id}
@@ -139,6 +156,17 @@ export function CoursesManager({
                     Tornar ativo
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditingCourse(
+                      editing ? null : { id: c.id, title: c.title, description: c.description },
+                    )
+                  }
+                  className="text-[11px] font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                >
+                  <Pencil className="h-3 w-3" /> Editar
+                </button>
                 {courses.length > 1 && (
                   <button
                     type="button"
@@ -149,6 +177,50 @@ export function CoursesManager({
                   </button>
                 )}
               </div>
+              {editing && editingCourse && (
+                <div className="mt-3 rounded-lg border border-dashed border-border bg-background/60 p-3 space-y-2">
+                  <label className="block">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Nome do curso
+                    </span>
+                    <input
+                      type="text"
+                      value={editingCourse.title}
+                      onChange={(event) =>
+                        setEditingCourse({ ...editingCourse, title: event.target.value })
+                      }
+                      className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] font-medium text-muted-foreground">Descrição</span>
+                    <textarea
+                      value={editingCourse.description}
+                      onChange={(event) =>
+                        setEditingCourse({ ...editingCourse, description: event.target.value })
+                      }
+                      rows={2}
+                      className="mt-1 w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCourse(null)}
+                      className="text-[11px] px-2.5 py-1.5 rounded-lg border border-border hover:bg-background"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveCourseEdit}
+                      className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                </div>
+              )}
             </li>
           );
         })}
@@ -172,7 +244,9 @@ export function CoursesManager({
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-muted-foreground">Horas por semana previstas</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                Horas por semana previstas
+              </span>
               <input
                 type="number"
                 min={1}
@@ -247,7 +321,9 @@ export function CoursesManager({
 
           <div className="rounded-lg bg-primary-soft/50 border border-primary/15 p-3 text-xs text-foreground">
             Estimativa: <span className="font-semibold">{totalLessons} lições</span> ·{" "}
-            <span className="font-semibold">~{estWeeks} {estWeeks === 1 ? "semana" : "semanas"}</span>{" "}
+            <span className="font-semibold">
+              ~{estWeeks} {estWeeks === 1 ? "semana" : "semanas"}
+            </span>{" "}
             com {weeklyHours} h/semana.
           </div>
 

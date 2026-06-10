@@ -6,17 +6,24 @@ interface Props {
   /** Minutes the user committed to today (from the impact calculator/pace). */
   minutesToday: number;
   paused?: boolean;
-  onStart: () => void;
+  onStart: (minutes: number) => void;
 }
 
-export function MicroHabitCard({ moduleTitle, lessonNumber, minutesToday, paused, onStart }: Props) {
+export function MicroHabitCard({
+  moduleTitle,
+  lessonNumber,
+  minutesToday,
+  paused,
+  onStart,
+}: Props) {
   const minutes = Math.max(3, Math.min(minutesToday, 25));
   const tiny = Math.min(minutes, 5);
 
   if (paused) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card p-5 text-sm text-muted-foreground">
-        Sua semana está em pausa programada. Nenhuma micro-meta hoje — descanse com tranquilidade. 🌿
+        Sua semana está em pausa programada. Nenhuma micro-meta hoje — descanse com tranquilidade.
+        🌿
       </div>
     );
   }
@@ -39,11 +46,12 @@ export function MicroHabitCard({ moduleTitle, lessonNumber, minutesToday, paused
             Só {tiny} minutinhos hoje já mantêm seu ritmo.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Abra a lição {lessonNumber ?? 1} de “{moduleTitle}”. Sem cobrança — qualquer passo conta.
+            Abra a lição {lessonNumber ?? 1} de “{moduleTitle}”. Sem cobrança — qualquer passo
+            conta.
           </p>
         </div>
         <button
-          onClick={onStart}
+          onClick={() => onStart(tiny)}
           className="text-xs font-semibold px-3.5 py-2 rounded-full bg-foreground text-background hover:opacity-90 transition shrink-0"
         >
           {tiny} min agora

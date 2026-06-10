@@ -7,14 +7,39 @@ interface Props {
   onChange: (p: PaceMode) => void;
 }
 
-const OPTIONS: { value: PaceMode; label: string; title: string; icon: typeof Leaf; helper: string }[] = [
-  { value: "leve", label: "Sem pressa", title: "Modo sem pressa", icon: Leaf, helper: "Semana corrida? Tudo bem." },
-  { value: "focado", label: "Focado", title: "Modo focado", icon: Target, helper: "Equilíbrio saudável." },
-  { value: "intenso", label: "Intenso", title: "Modo intenso", icon: Flame, helper: "Quero acelerar." },
+const OPTIONS: {
+  value: PaceMode;
+  label: string;
+  title: string;
+  icon: typeof Leaf;
+  helper: string;
+}[] = [
+  {
+    value: "leve",
+    label: "Sem pressa",
+    title: "Modo sem pressa",
+    icon: Leaf,
+    helper: "Semana corrida? Tudo bem.",
+  },
+  {
+    value: "focado",
+    label: "Focado",
+    title: "Modo focado",
+    icon: Target,
+    helper: "Equilíbrio saudável.",
+  },
+  {
+    value: "intenso",
+    label: "Intenso",
+    title: "Modo intenso",
+    icon: Flame,
+    helper: "Quero acelerar.",
+  },
 ];
 
 export function PaceSelector({ pace, onChange }: Props) {
   const current = OPTIONS.find((o) => o.value === pace) ?? OPTIONS[1];
+  const currentHours = PACE_HOURS[pace];
 
   return (
     <section className="rounded-2xl bg-card border border-border p-5 shadow-soft">
@@ -26,13 +51,14 @@ export function PaceSelector({ pace, onChange }: Props) {
           </p>
         </div>
         <p className="text-xs text-muted-foreground">
-          Atual: <span className="font-medium text-foreground">{PACE_HOURS[pace]}h/semana</span>
+          Atual: <span className="font-medium text-foreground">{currentHours}h/semana</span>
         </p>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2">
         {OPTIONS.map((o) => {
           const active = o.value === pace;
           const Icon = o.icon;
+          const minutes = PACE_HOURS[o.value] * 60;
           return (
             <button
               key={o.value}
@@ -54,7 +80,7 @@ export function PaceSelector({ pace, onChange }: Props) {
                 {o.helper}
               </p>
               <p className="text-[10px] sm:text-[11px] font-medium mt-1.5 text-foreground/70">
-                {PACE_HOURS[o.value]}h/sem
+                {minutes} min/semana
               </p>
             </button>
           );

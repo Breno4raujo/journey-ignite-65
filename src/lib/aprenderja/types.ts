@@ -18,6 +18,7 @@ export interface Module {
   title: string;
   order: number;
   totalLessons: number;
+  lessons?: string[];
 }
 
 export interface UserProgress {
@@ -30,6 +31,31 @@ export interface UserProgress {
 }
 
 export type PaceMode = "leve" | "focado" | "intenso";
+
+export type StudyActivityKind = "lesson" | "module" | "time";
+
+export interface StudyActivity {
+  id: string;
+  userId: string;
+  courseId: string;
+  moduleId: string;
+  kind: StudyActivityKind;
+  lessonNumber?: number;
+  seconds?: number;
+  createdAt: Date;
+}
+
+export interface StudySession {
+  id: string;
+  userId: string;
+  courseId: string;
+  moduleId: string;
+  durationMinutes: number;
+  remainingSeconds: number;
+  notes: string;
+  startedAt: Date;
+  updatedAt: Date;
+}
 
 export interface ModuleProgressView {
   module: Module;
@@ -74,6 +100,16 @@ export interface SoftSkillBadge {
   icon: BadgeIcon;
 }
 
+export interface WeeklyEnergySummary {
+  current: number;
+  goal: number;
+  studiedMinutes: number;
+  completedLessons: number;
+  completedModules: number;
+  rhythmDeltaPercent: number;
+  message: string;
+}
+
 export interface ProgressSummary {
   course: Course;
   overallPercent: number;
@@ -85,11 +121,13 @@ export interface ProgressSummary {
   paceHoursPerWeek: number;
   encouragement: string;
   resumeContext: {
+    courseId: string;
+    moduleId: string;
     moduleTitle: string;
     lessonNumber: number;
     daysSince: number;
   } | null;
-  weeklyEnergy: { current: number; goal: number };
+  weeklyEnergy: WeeklyEnergySummary;
   badges: SoftSkillBadge[];
 }
 
