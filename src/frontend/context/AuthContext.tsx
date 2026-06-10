@@ -18,11 +18,14 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function fetchMe(): Promise<AuthUser | null> {
-  const res = await fetch("/api/auth/me", { credentials: "include" });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.user ?? null;
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("token");
+}
+
+function setToken(token: string | null) {
+  if (token) localStorage.setItem("token", token);
+  else localStorage.removeItem("token");
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -30,57 +33,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshSession = useCallback(async () => {
-    const refreshRes = await fetch("/api/auth/refresh", {
-      method: "POST",
-      credentials: "include",
-    });
-    if (!refreshRes.ok) return false;
-    const me = await fetchMe();
-    setUser(me);
-    return !!me;
+    const token = getToken();
+    if (!token) {
+      setUser(null);
+      return false;
+    }
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        setToken(null);
+        setUser(null);
+        return false;
+      }
+      const data = await res.json();
+      setUser(data.user);
+      return true;
+    } catch {
+      setUser(null);
+      return false;
+    }
   }, []);
 
   useEffect(() => {
-    fetchMe()
-      .then(async (me) => {
-        if (me) {
-          setUser(me);
-          return;
-        }
-        await refreshSession();
-      })
-      .finally(() => setLoading(false));
+    refreshSession().finally(() => setLoading(false));
   }, [refreshSession]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) return data.error ?? "Erro ao entrar.";
-    setUser(data.user);
-    return null;
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return data.error ?? "Erro ao entrar.";
+      setToken(data.token);
+      setUser(data.user);
+      return null;
+    } catch {
+      return "Erro de conexão. Tente novamente.";
+    }
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ name, email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) return data.error ?? "Erro ao criar conta.";
-    setUser(data.user);
-    return null;
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return data.error ?? "Erro ao criar conta.";
+      setToken(data.token);
+      setUser(data.user);
+      return null;
+    } catch {
+      return "Erro de conexão. Tente novamente.";
+    }
   }, []);
 
   const logout = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    setToken(null);
     setUser(null);
+    window.location.href = "/login";
   }, []);
 
   const value = useMemo(

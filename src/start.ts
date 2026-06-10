@@ -1,13 +1,10 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { handleApiRequest } from "./backend/routes/api.router";
+import { validateEnv } from "./lib/env-validation";
 
-const apiMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const apiResponse = await handleApiRequest(request);
-  if (apiResponse) return apiResponse;
-  return next();
-});
+// Valida envs obrigatórias no boot do servidor com mensagem amigável.
+validateEnv();
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -25,5 +22,5 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [apiMiddleware, errorMiddleware],
+  requestMiddleware: [errorMiddleware],
 }));

@@ -1,7 +1,26 @@
 import {
-  Sun, Moon, Heart, Trophy, Lock,
-  Footprints, Coffee, Compass, Flag, Medal, Rocket, Zap, CalendarCheck,
-  CalendarDays, Target, Sparkles, Shield, Scale, RefreshCw, Flame, Gauge, BookOpen,
+  Sun,
+  Moon,
+  Heart,
+  Trophy,
+  Lock,
+  Footprints,
+  Coffee,
+  Compass,
+  Flag,
+  Medal,
+  Rocket,
+  Zap,
+  CalendarCheck,
+  CalendarDays,
+  Target,
+  Sparkles,
+  Shield,
+  Scale,
+  RefreshCw,
+  Flame,
+  Gauge,
+  BookOpen,
   Star,
 } from "lucide-react";
 import type { BadgeIcon, SoftSkillBadge } from "@/lib/aprenderja/types";
@@ -34,9 +53,13 @@ const ICONS: Record<BadgeIcon, React.ComponentType<{ className?: string }>> = {
   milestone75: Star,
 };
 
-interface Props { badges: SoftSkillBadge[] }
+interface Props {
+  badges: SoftSkillBadge[];
+  seenBadgeIds: string[];
+  onBadgeClick: (badge: SoftSkillBadge) => void;
+}
 
-export function BadgesShowcase({ badges }: Props) {
+export function BadgesShowcase({ badges, seenBadgeIds, onBadgeClick }: Props) {
   return (
     <section className="rounded-2xl bg-card border border-border p-5 shadow-soft">
       <div className="flex items-baseline justify-between">
@@ -53,24 +76,34 @@ export function BadgesShowcase({ badges }: Props) {
       <ul className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
         {badges.map((b) => {
           const Icon = ICONS[b.icon];
+          const seen = seenBadgeIds.includes(b.id);
           return (
-            <li
-              key={b.id}
-              className={`rounded-xl border p-3 text-center transition ${
-                b.earned
-                  ? "border-accent/40 bg-accent-soft/50"
-                  : "border-dashed border-border bg-background/60 opacity-70"
-              }`}
-            >
-              <div
-                className={`mx-auto h-9 w-9 rounded-full grid place-items-center ${
-                  b.earned ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
+            <li key={b.id}>
+              <button
+                type="button"
+                onClick={() => b.earned && onBadgeClick(b)}
+                disabled={!b.earned}
+                aria-disabled={!b.earned}
+                className={`w-full rounded-xl border p-3 text-center transition focus:outline-none focus:ring-2 focus:ring-primary/30 ${
+                  b.earned
+                    ? seen
+                      ? "border-accent/40 bg-accent-soft/50 hover:border-primary/30"
+                      : "border-accent bg-accent-soft/70 shadow-soft hover:border-primary/30"
+                    : "border-dashed border-border bg-background/60 opacity-70 cursor-not-allowed"
                 }`}
               >
-                {b.earned ? <Icon className="h-4 w-4" /> : <Lock className="h-3.5 w-3.5" />}
-              </div>
-              <p className="mt-2 text-xs font-medium leading-tight">{b.label}</p>
-              <p className="text-[10px] text-muted-foreground mt-1 leading-snug">{b.description}</p>
+                <div
+                  className={`mx-auto h-9 w-9 rounded-full grid place-items-center ${
+                    b.earned ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {b.earned ? <Icon className="h-4 w-4" /> : <Lock className="h-3.5 w-3.5" />}
+                </div>
+                <p className="mt-2 text-xs font-medium leading-tight">{b.label}</p>
+                <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
+                  {b.description}
+                </p>
+              </button>
             </li>
           );
         })}
