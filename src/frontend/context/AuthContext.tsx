@@ -18,7 +18,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// Chaves do localStorage
 const TOKEN_KEY = "token";
 const SESSION_KEY = "aprenderja:session";
 const USERS_KEY = "aprenderja:users";
@@ -69,7 +68,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = useCallback(async () => {
     const token = getToken();
 
-    // Tenta via API
     if (token) {
       try {
         const res = await fetch("/api/auth/me", {
@@ -82,11 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return true;
         }
       } catch {
-        // API indisponível — tenta sessão local
+        // API indisponível
       }
     }
 
-    // Fallback: sessão salva no localStorage
     const session = readSession();
     if (session) {
       setUser(session);
@@ -103,7 +100,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshSession]);
 
   const login = useCallback(async (email: string, password: string) => {
-    // Tenta via API
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -117,8 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         writeSession(data.user);
         return null;
       }
+      if (res.status !== 404) {
+        const data = await res.json();
+        return data.error ?? "Erro ao entrar.";
+      }
     } catch {
-      // API indisponível — usa fallback local
+      // API indisponível
     }
 
     // Fallback local
@@ -139,7 +139,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
-    // Tenta via API
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -153,10 +152,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         writeSession(data.user);
         return null;
       }
-      const data = await res.json();
-      return data.error ?? "Erro ao criar conta.";
+      if (res.status !== 404) {
+        const data = await res.json();
+        return data.error ?? "Erro ao criar conta.";
+      }
     } catch {
-      // API indisponível — usa fallback local
+      // API indisponível
     }
 
     // Fallback local
