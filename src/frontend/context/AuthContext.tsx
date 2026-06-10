@@ -70,9 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (token) {
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
         const res = await fetch("/api/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         if (res.ok) {
           const data = await res.json();
           setUser(data.user);
@@ -101,11 +105,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);
@@ -118,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return data.error ?? "Erro ao entrar.";
       }
     } catch {
-      // API indisponível
+      // API indisponível ou timeout
     }
 
     // Fallback local
@@ -140,11 +148,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);
@@ -157,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return data.error ?? "Erro ao criar conta.";
       }
     } catch {
-      // API indisponível
+      // API indisponível ou timeout
     }
 
     // Fallback local
