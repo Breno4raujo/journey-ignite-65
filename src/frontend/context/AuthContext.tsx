@@ -18,14 +18,38 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
+// Auth client-side (localStorage). Quando ativar Lovable Cloud, troque por Supabase auth.
+const USERS_KEY = "aprenderja:users";
+const SESSION_KEY = "aprenderja:session";
+
+type StoredUser = AuthUser & { password: string };
+
+function readUsers(): StoredUser[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
 }
 
-function setToken(token: string | null) {
-  if (token) localStorage.setItem("token", token);
-  else localStorage.removeItem("token");
+function writeUsers(users: StoredUser[]) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function readSession(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as AuthUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSession(user: AuthUser | null) {
+  if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+  else localStorage.removeItem(SESSION_KEY);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -33,27 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshSession = useCallback(async () => {
-    const token = getToken();
-    if (!token) {
-      setUser(null);
-      return false;
-    }
-    try {
-      const res = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        setToken(null);
-        setUser(null);
-        return false;
-      }
-      const data = await res.json();
-      setUser(data.user);
-      return true;
-    } catch {
-      setUser(null);
-      return false;
-    }
+    const session = readSession();
+    setUser(session);
+    return session !== null;
   }, []);
 
   useEffect(() => {
@@ -61,41 +67,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshSession]);
 
   const login = useCallback(async (email: string, password: string) => {
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) return data.error ?? "Erro ao entrar.";
-      setToken(data.token);
-      setUser(data.user);
-      return null;
-    } catch {
-      return "Erro de conexão. Tente novamente.";
-    }
+    const users = readUsers();
+    const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (!found || found.password !== password) return "E-mail ou senha inválidos.";
+    const session: AuthUser = {
+      id: found.id,
+      name: found.name,
+      email: found.email,
+      createdAt: found.createdAt,
+    };
+    writeSession(session);
+    setUser(session);
+    return null;
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) return data.error ?? "Erro ao criar conta.";
-      setToken(data.token);
-      setUser(data.user);
-      return null;
-    } catch {
-      return "Erro de conexão. Tente novamente.";
+    const users = readUsers();
+    if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
+      return "Este e-mail já está cadastrado.";
     }
+    const newUser: StoredUser = {
+      id: crypto.randomUUID(),
+      name,
+      email,
+      password,
+      createdAt: new Date().toISOString(),
+    };
+    writeUsers([...users, newUser]);
+    const session: AuthUser = {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      createdAt: newUser.createdAt,
+    };
+    writeSession(session);
+    setUser(session);
+    return null;
   }, []);
 
   const logout = useCallback(async () => {
-    setToken(null);
+    writeSession(null);
     setUser(null);
     window.location.href = "/login";
   }, []);
